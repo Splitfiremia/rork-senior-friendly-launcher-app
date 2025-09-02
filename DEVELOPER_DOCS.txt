@@ -1,0 +1,582 @@
+# Senior Launcher App - Developer Documentation
+
+## Project Overview
+
+The Senior Launcher App is a React Native application built with Expo that provides a simplified, accessible interface for senior users. It features large buttons, high contrast options, emergency contacts, and remote family management capabilities.
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    A[App Entry Point] --> B[Root Layout]
+    B --> C[Query Client Provider]
+    C --> D[Launcher Provider]
+    D --> E[Dashboard Provider]
+    E --> F[Tab Navigation]
+    
+    F --> G[Home Tab]
+    F --> H[Contacts Tab]
+    F --> I[Apps Tab]
+    F --> J[Settings Tab]
+    F --> K[Entertainment Tab]
+    
+    B --> L[Phone Dialer Modal]
+    B --> M[Family Dashboard]
+    
+    N[AsyncStorage] --> D
+    N --> E
+    
+    O[React Query] --> C
+    P[Remote Commands] --> E
+```
+
+## Technology Stack
+
+- **Framework**: React Native with Expo SDK 53
+- **Navigation**: Expo Router (file-based routing)
+- **State Management**: 
+  - @nkzw/create-context-hook for local state
+  - @tanstack/react-query for server state
+  - AsyncStorage for persistence
+- **UI Components**: Custom components with Lucide React Native icons
+- **Styling**: React Native StyleSheet
+- **TypeScript**: Strict type checking enabled
+
+## Project Structure
+
+```
+app/
+├── _layout.tsx              # Root layout with providers
+├── +not-found.tsx           # 404 page
+├── (tabs)/                  # Tab navigation group
+│   ├── _layout.tsx          # Tab layout configuration
+│   ├── index.tsx            # Home screen
+│   ├── contacts.tsx         # Contacts management
+│   ├── apps.tsx             # App tiles management
+│   ├── settings.tsx         # Settings screen
+│   └── entertainment.tsx    # Entertainment/games screen
+├── phone-dialer.tsx         # Phone dialer modal
+└── dashboard.tsx            # Family dashboard
+
+components/
+├── AppTile.tsx              # App tile component
+├── ContactCard.tsx          # Contact card component
+├── EmergencyButton.tsx      # Emergency contact button
+├── Header.tsx               # App header
+└── FamilyDashboard.tsx      # Dashboard component
+
+hooks/
+├── launcher-context.tsx     # Main app state management
+└── dashboard-context.tsx    # Family dashboard state
+
+types/
+├── launcher.ts              # Launcher-related types
+└── dashboard.ts             # Dashboard-related types
+
+constants/
+└── launcher-config.ts       # App configuration and defaults
+```
+
+## State Management Architecture
+
+### Launcher Context Flow
+
+```mermaid
+flowchart TD
+    A[LauncherProvider] --> B[AsyncStorage]
+    A --> C[Settings State]
+    A --> D[Contacts State]
+    A --> E[App Tiles State]
+    
+    C --> F[Text Size]
+    C --> G[High Contrast]
+    C --> H[Grid Size]
+    C --> I[Visible Apps]
+    
+    D --> J[Favorite Contacts]
+    D --> K[Emergency Contact]
+    D --> L[All Contacts]
+    
+    E --> M[Visible Tiles]
+    E --> N[Tile Order]
+    E --> O[Tile Actions]
+    
+    P[Component] --> Q[useLauncher Hook]
+    Q --> A
+    
+    R[Component] --> S[useFavoriteContacts]
+    S --> D
+    
+    T[Component] --> U[useEmergencyContact]
+    U --> D
+    
+    V[Component] --> W[useVisibleAppTiles]
+    W --> E
+```
+
+### Dashboard Context Flow
+
+```mermaid
+flowchart TD
+    A[DashboardProvider] --> B[Device Management]
+    A --> C[Authentication]
+    A --> D[Remote Commands]
+    
+    B --> E[Device ID Generation]
+    B --> F[Pairing Process]
+    B --> G[Device Info Storage]
+    
+    C --> H[Family Member Auth]
+    C --> I[Session Management]
+    C --> J[Token Validation]
+    
+    D --> K[Command Polling]
+    D --> L[Command Processing]
+    D --> M[Command Status Updates]
+    
+    N[React Query] --> O[Remote Command Polling]
+    O --> D
+    
+    P[AsyncStorage] --> Q[Device Persistence]
+    Q --> B
+    
+    R[AsyncStorage] --> S[Session Persistence]
+    S --> C
+```
+
+## Data Flow Diagrams
+
+### App Initialization Flow
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant RootLayout
+    participant LauncherProvider
+    participant DashboardProvider
+    participant AsyncStorage
+    
+    App->>RootLayout: Initialize
+    RootLayout->>LauncherProvider: Mount
+    LauncherProvider->>AsyncStorage: Load saved settings
+    LauncherProvider->>AsyncStorage: Load saved contacts
+    LauncherProvider->>AsyncStorage: Load saved app tiles
+    AsyncStorage-->>LauncherProvider: Return data
+    LauncherProvider->>LauncherProvider: Set initial state
+    
+    RootLayout->>DashboardProvider: Mount
+    DashboardProvider->>AsyncStorage: Load device ID
+    DashboardProvider->>AsyncStorage: Load device info
+    DashboardProvider->>AsyncStorage: Load session
+    AsyncStorage-->>DashboardProvider: Return data
+    DashboardProvider->>DashboardProvider: Initialize device
+```
+
+### Contact Management Flow
+
+```mermaid
+sequenceDiagram
+    participant UI
+    participant LauncherContext
+    participant AsyncStorage
+    
+    UI->>LauncherContext: addContact(contact)
+    LauncherContext->>LauncherContext: Update contacts array
+    LauncherContext->>AsyncStorage: Save updated contacts
+    AsyncStorage-->>LauncherContext: Confirm save
+    LauncherContext-->>UI: Update complete
+    
+    UI->>LauncherContext: toggleFavoriteContact(id)
+    LauncherContext->>LauncherContext: Find and update contact
+    LauncherContext->>AsyncStorage: Save updated contacts
+    AsyncStorage-->>LauncherContext: Confirm save
+    LauncherContext-->>UI: Update complete
+    
+    UI->>LauncherContext: setEmergencyContact(id)
+    LauncherContext->>LauncherContext: Update all contacts (only one emergency)
+    LauncherContext->>AsyncStorage: Save updated contacts
+    AsyncStorage-->>LauncherContext: Confirm save
+    LauncherContext-->>UI: Update complete
+```
+
+### Family Dashboard Pairing Flow
+
+```mermaid
+sequenceDiagram
+    participant Senior
+    participant SeniorApp
+    participant Family
+    participant FamilyDashboard
+    participant Backend
+    
+    Senior->>SeniorApp: Open Dashboard
+    SeniorApp->>SeniorApp: Generate device ID
+    SeniorApp->>SeniorApp: Generate pairing code
+    SeniorApp->>Senior: Display QR code
+    
+    Family->>FamilyDashboard: Scan QR code
+    FamilyDashboard->>Backend: Send pairing request
+    Backend->>SeniorApp: Send pairing notification
+    SeniorApp->>Senior: Show pairing confirmation
+    Senior->>SeniorApp: Confirm pairing
+    SeniorApp->>Backend: Confirm pairing
+    Backend->>FamilyDashboard: Pairing successful
+    
+    Family->>FamilyDashboard: Login with credentials
+    FamilyDashboard->>Backend: Authenticate
+    Backend-->>FamilyDashboard: Return session token
+    FamilyDashboard->>FamilyDashboard: Store session
+```
+
+### Remote Command Processing Flow
+
+```mermaid
+sequenceDiagram
+    participant Family
+    participant Backend
+    participant SeniorApp
+    participant LauncherContext
+    
+    Family->>Backend: Send remote command
+    Backend->>Backend: Queue command for device
+    
+    SeniorApp->>Backend: Poll for commands (every 30s)
+    Backend-->>SeniorApp: Return pending commands
+    SeniorApp->>SeniorApp: Process command
+    
+    alt Add Contact Command
+        SeniorApp->>LauncherContext: addContact(data)
+        LauncherContext->>LauncherContext: Update contacts
+    else Update Settings Command
+        SeniorApp->>LauncherContext: updateSettings(data)
+        LauncherContext->>LauncherContext: Update settings
+    else App Management Command
+        SeniorApp->>LauncherContext: toggleAppVisibility(appId)
+        LauncherContext->>LauncherContext: Update app tiles
+    end
+    
+    SeniorApp->>Backend: Mark command as completed
+    Backend->>Family: Notify command completion
+```
+
+## Component Architecture
+
+### Home Screen Component Flow
+
+```mermaid
+flowchart TD
+    A[HomeScreen] --> B[Header]
+    A --> C[EmergencyButton]
+    A --> D[Apps Grid]
+    A --> E[Quick Access Section]
+    A --> F[Favorite Contacts]
+    
+    D --> G[AppTile Components]
+    G --> H[useLauncher Hook]
+    G --> I[useVisibleAppTiles Hook]
+    
+    E --> J[Entertainment Links]
+    J --> K[External Web Links]
+    
+    F --> L[ContactCard Components]
+    L --> M[useFavoriteContacts Hook]
+    
+    C --> N[useEmergencyContact Hook]
+    N --> O[Phone Dialer Navigation]
+```
+
+### Settings Screen Component Flow
+
+```mermaid
+flowchart TD
+    A[SettingsScreen] --> B[Text Size Settings]
+    A --> C[High Contrast Toggle]
+    A --> D[Grid Size Settings]
+    A --> E[Emergency Contact Selection]
+    A --> F[Reset to Defaults]
+    A --> G[Dashboard Access]
+    
+    B --> H[useLauncher Hook]
+    C --> H
+    D --> H
+    E --> H
+    F --> H
+    
+    G --> I[Dashboard Navigation]
+    
+    H --> J[updateSettings Function]
+    J --> K[AsyncStorage Persistence]
+```
+
+## API Integration Points
+
+### Current Mock APIs
+
+```mermaid
+flowchart LR
+    A[Senior App] --> B[Mock Authentication]
+    A --> C[Mock Device Pairing]
+    A --> D[Mock Command Processing]
+    
+    B --> E[Generate Mock Session]
+    C --> F[Generate Mock Device Info]
+    D --> G[Process Local Commands]
+    
+    E --> H[AsyncStorage]
+    F --> H
+    G --> H
+```
+
+### Future Production APIs
+
+```mermaid
+flowchart LR
+    A[Senior App] --> B[Auth API]
+    A --> C[Device Management API]
+    A --> D[Command Processing API]
+    A --> E[Contact Sync API]
+    
+    B --> F[JWT Token Management]
+    C --> G[Device Registration]
+    D --> H[Real-time Commands]
+    E --> I[Contact Synchronization]
+    
+    F --> J[Secure Storage]
+    G --> J
+    H --> K[WebSocket/Polling]
+    I --> L[Conflict Resolution]
+```
+
+## Key Features Implementation
+
+### Accessibility Features
+
+1. **Large Text Support**
+   - Configurable text sizes (medium, large, extra-large)
+   - Consistent scaling across all components
+   - Stored in user preferences
+
+2. **High Contrast Mode**
+   - Toggle for enhanced visibility
+   - Affects colors and borders
+   - Persisted in settings
+
+3. **Large Touch Targets**
+   - Minimum 44px touch targets
+   - Generous padding and margins
+   - Clear visual feedback
+
+### Emergency Features
+
+1. **Emergency Contact**
+   - One designated emergency contact
+   - Prominent emergency button on home screen
+   - Direct dialing capability
+
+2. **Quick Access**
+   - Favorite contacts on home screen
+   - Large, easy-to-tap contact cards
+   - Photo support for visual recognition
+
+### Family Management
+
+1. **Device Pairing**
+   - QR code-based pairing
+   - Secure device identification
+   - Family member authentication
+
+2. **Remote Management**
+   - Add/edit contacts remotely
+   - Modify app visibility
+   - Update settings
+   - Command queuing and processing
+
+## Development Guidelines
+
+### Code Organization
+
+1. **TypeScript First**
+   - Strict type checking enabled
+   - Explicit type annotations for useState
+   - Complete interface definitions
+
+2. **Component Structure**
+   - Functional components with hooks
+   - Props interfaces defined
+   - TestID attributes for testing
+
+3. **State Management**
+   - Use createContextHook for shared state
+   - React Query for server state
+   - AsyncStorage for persistence
+
+### Performance Considerations
+
+1. **Manual Optimization**
+   - React.memo() for expensive components
+   - useMemo() for computed values
+   - useCallback() for event handlers
+
+2. **Lazy Loading**
+   - Dynamic imports where appropriate
+   - Image lazy loading
+   - Component code splitting
+
+### Testing Strategy
+
+1. **Component Testing**
+   - TestID attributes on interactive elements
+   - Mock context providers
+   - Accessibility testing
+
+2. **Integration Testing**
+   - End-to-end user flows
+   - AsyncStorage persistence
+   - Navigation testing
+
+### Platform Compatibility
+
+1. **Web Compatibility**
+   - Platform-specific code with Platform.OS
+   - Fallbacks for native-only features
+   - CSS-compatible styling
+
+2. **Mobile Optimization**
+   - Safe area handling
+   - Gesture support
+   - Native performance
+
+## Deployment and Build Process
+
+### Development Environment
+
+```bash
+# Start development server
+bun run start
+
+# Start web development
+bun run start-web
+
+# Start with debugging
+bun run start-web-dev
+```
+
+### Build Configuration
+
+- **Expo SDK**: Version 53
+- **React Native**: Version 0.79.1
+- **TypeScript**: Version 5.8.3
+- **Target Platforms**: iOS, Android, Web
+
+### Environment Variables
+
+- Development uses local mock APIs
+- Production would require backend API endpoints
+- Authentication tokens managed securely
+
+## Troubleshooting Guide
+
+### Common Issues
+
+1. **Bundle Errors**
+   - Check TypeScript compilation
+   - Verify import paths
+   - Clear Metro cache
+
+2. **State Persistence Issues**
+   - Check AsyncStorage permissions
+   - Verify JSON serialization
+   - Handle storage errors gracefully
+
+3. **Navigation Issues**
+   - Verify route definitions
+   - Check tab configuration
+   - Handle deep linking
+
+### Debug Tools
+
+1. **React Native Debugger**
+   - Component inspection
+   - State monitoring
+   - Network requests
+
+2. **Flipper Integration**
+   - AsyncStorage inspection
+   - Network monitoring
+   - Performance profiling
+
+## Future Enhancements
+
+### Planned Features
+
+1. **Voice Commands**
+   - Speech-to-text integration
+   - Voice navigation
+   - Audio feedback
+
+2. **Health Integration**
+   - Medication reminders
+   - Health data tracking
+   - Emergency health info
+
+3. **Enhanced Communication**
+   - Video calling
+   - Simple messaging
+   - Photo sharing
+
+### Technical Improvements
+
+1. **Real Backend Integration**
+   - REST API implementation
+   - WebSocket for real-time updates
+   - Proper authentication system
+
+2. **Advanced Accessibility**
+   - Screen reader optimization
+   - Voice over support
+   - Gesture customization
+
+3. **Performance Optimization**
+   - Image caching
+   - Background sync
+   - Offline support
+
+## Contributing Guidelines
+
+### Code Standards
+
+1. **TypeScript**
+   - Use strict type checking
+   - Define interfaces for all data structures
+   - Avoid `any` types
+
+2. **React Native**
+   - Follow React hooks patterns
+   - Use functional components
+   - Implement proper error boundaries
+
+3. **Styling**
+   - Use StyleSheet.create()
+   - Follow consistent naming conventions
+   - Implement responsive design
+
+### Pull Request Process
+
+1. **Code Review**
+   - TypeScript compilation check
+   - Component testing
+   - Accessibility review
+
+2. **Testing Requirements**
+   - Unit tests for utilities
+   - Component tests for UI
+   - Integration tests for flows
+
+3. **Documentation**
+   - Update component documentation
+   - Add inline code comments
+   - Update this developer guide
+
+---
+
+*This documentation is maintained alongside the codebase and should be updated with any architectural changes or new features.*
