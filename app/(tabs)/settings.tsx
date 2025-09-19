@@ -21,6 +21,7 @@ import {
   Shield,
   Battery,
   Globe,
+  Mic,
   Settings as SettingsIcon,
 } from 'lucide-react-native';
 import { useLauncher, useEmergencyContact } from '@/hooks/launcher-context';
@@ -285,6 +286,27 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>
+            Accessibility
+          </Text>
+          
+          <SettingRow
+            icon={Mic}
+            title="Voice Commands"
+            value="Accessibility Feature"
+            onPress={() => {
+              console.log('Voice Commands pressed');
+              try {
+                router.push('/voice-settings');
+                console.log('Navigation to voice settings initiated');
+              } catch (error) {
+                console.error('Error navigating to voice settings:', error);
+              }
+            }}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>
             CareConnect
           </Text>
           
@@ -302,8 +324,6 @@ export default function SettingsScreen() {
               }
             }}
           />
-          
-
         </View>
 
         <View style={styles.section}>

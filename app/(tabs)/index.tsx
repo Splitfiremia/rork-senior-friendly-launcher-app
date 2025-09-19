@@ -3,11 +3,11 @@ import { ScrollView, View, StyleSheet, Dimensions, SafeAreaView, Text, Touchable
 import { useVisibleAppTiles, useLauncher } from '@/hooks/launcher-context';
 import { useWellnessMonitoring } from '@/hooks/wellness-monitoring';
 import AppTile from '@/components/AppTile';
-
 import EmergencyButton from '@/components/EmergencyButton';
 import Header from '@/components/Header';
 import ImOkButton from '@/components/ImOkButton';
 import { GuardianStatus } from '@/components/GuardianStatus';
+import { FloatingVoiceButton } from '@/components/FloatingVoiceButton';
 import { COLORS } from '@/constants/launcher-config';
 import { Radio, Gamepad2, Cloud, Newspaper } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -146,6 +146,12 @@ export default function HomeScreen() {
 
 
       </ScrollView>
+      
+      <FloatingVoiceButton 
+        position="bottom-right" 
+        size="medium" 
+        showLabel={true} 
+      />
     </SafeAreaView>
   );
 }
