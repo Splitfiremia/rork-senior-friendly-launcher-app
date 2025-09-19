@@ -33,31 +33,7 @@ export default function AppTile({ tile, size, onPress }: AppTileProps) {
         router.push('/phone-dialer');
         break;
       case 'messages':
-        if (Platform.OS !== 'web') {
-          try {
-            // Try to open the default messaging app
-            await Linking.openURL('sms:');
-          } catch {
-            Alert.alert('Messages', 'Unable to open messages app');
-          }
-        } else {
-          // For web, show a helpful message
-          Alert.alert(
-            'Messages', 
-            'Messages functionality is available on mobile devices. On web, you can use your phone\'s messaging app or web-based messaging services.',
-            [
-              { text: 'OK', style: 'default' },
-              { 
-                text: 'Open Web Messages', 
-                onPress: () => {
-                  if (typeof window !== 'undefined') {
-                    window.open('https://messages.google.com/web', '_blank');
-                  }
-                }
-              }
-            ]
-          );
-        }
+        router.push('/message-composer');
         break;
       case 'camera':
         if (Platform.OS === 'web') {

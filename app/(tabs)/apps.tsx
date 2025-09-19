@@ -35,6 +35,12 @@ export default function AppsScreen() {
                   router.push('/settings');
                 } else if (tile.action === 'contacts') {
                   router.push('/contacts');
+                } else if (tile.action === 'phone') {
+                  router.push('/phone-dialer');
+                } else if (tile.action === 'messages') {
+                  router.push('/message-composer');
+                } else if (tile.action === 'camera') {
+                  router.push('/camera');
                 }
               }}
             />
