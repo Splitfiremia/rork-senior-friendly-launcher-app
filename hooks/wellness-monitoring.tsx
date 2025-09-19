@@ -19,7 +19,7 @@ export function useWellnessMonitoring({
   getHoursSinceLastActivity?: () => number;
   deviceInfo?: { familyMembers?: string[] } | null;
 } = {}) {
-  // Initialize battery and connectivity guardian with dependencies
+  // Initialize battery and connectivity guardian with stable dependencies
   const { isGuardianActive } = useBatteryConnectivityGuardian({
     deviceInfo,
     addWellnessAlert,
@@ -43,53 +43,60 @@ export function useWellnessMonitoring({
   const performWellnessCheck = useCallback(async () => {
     if (!settings?.wellnessChecks?.enabled || !getTodaysCheckIn || !getHoursSinceLastActivity || !addWellnessAlert) return;
 
-    const now = new Date();
-    const todaysCheckIn = getTodaysCheckIn();
-    const hoursSinceActivity = getHoursSinceLastActivity();
+    try {
+      const now = new Date();
+      const todaysCheckIn = getTodaysCheckIn();
+      const hoursSinceActivity = getHoursSinceLastActivity();
 
-    // Check if it's past the check-in time and no check-in today
-    const [checkInHour, checkInMinute] = settings.wellnessChecks.checkInTime.split(':').map(Number);
-    const checkInTime = new Date();
-    checkInTime.setHours(checkInHour, checkInMinute, 0, 0);
+      // Check if it's past the check-in time and no check-in today
+      const [checkInHour, checkInMinute] = settings.wellnessChecks.checkInTime.split(':').map(Number);
+      const checkInTime = new Date();
+      checkInTime.setHours(checkInHour, checkInMinute, 0, 0);
 
-    // Check if it's past reminder time and no check-in today
-    const [reminderHour, reminderMinute] = settings.wellnessChecks.reminderTime.split(':').map(Number);
-    const reminderTime = new Date();
-    reminderTime.setHours(reminderHour, reminderMinute, 0, 0);
+      // Check if it's past reminder time and no check-in today
+      const [reminderHour, reminderMinute] = settings.wellnessChecks.reminderTime.split(':').map(Number);
+      const reminderTime = new Date();
+      reminderTime.setHours(reminderHour, reminderMinute, 0, 0);
 
-    // If it's past check-in time and no check-in today, create alert
-    if (now > checkInTime && !todaysCheckIn) {
-      const existingMissedAlert = await checkForExistingAlert('missed_checkin');
-      if (!existingMissedAlert) {
-        await addWellnessAlert({
-          type: 'missed_checkin',
-          message: `No check-in received today. Last expected at ${settings.wellnessChecks.checkInTime}.`,
-          acknowledged: false,
-          familyMemberIds: deviceInfo?.familyMembers || [],
-        });
+      // If it's past check-in time and no check-in today, create alert
+      if (now > checkInTime && !todaysCheckIn) {
+        const existingMissedAlert = await checkForExistingAlert('missed_checkin');
+        if (!existingMissedAlert) {
+          await addWellnessAlert({
+            type: 'missed_checkin',
+            message: `No check-in received today. Last expected at ${settings.wellnessChecks.checkInTime}.`,
+            acknowledged: false,
+            familyMemberIds: deviceInfo?.familyMembers || [],
+          });
+        }
       }
-    }
 
-    // If it's past reminder time and no check-in today, send reminder notification
-    if (now > reminderTime && !todaysCheckIn) {
-      // In a real app, this would trigger a local notification
-      console.log('Wellness check reminder: Time to check in!');
-    }
-
-    // Check for prolonged inactivity
-    if (hoursSinceActivity >= settings.wellnessChecks.autoCheckThreshold) {
-      const existingInactivityAlert = await checkForExistingAlert('no_activity');
-      if (!existingInactivityAlert) {
-        await addWellnessAlert({
-          type: 'no_activity',
-          message: `No phone activity detected for ${hoursSinceActivity} hours. Last activity: ${new Date(Date.now() - hoursSinceActivity * 60 * 60 * 1000).toLocaleString()}.`,
-          acknowledged: false,
-          familyMemberIds: deviceInfo?.familyMembers || [],
-        });
+      // If it's past reminder time and no check-in today, send reminder notification
+      if (now > reminderTime && !todaysCheckIn) {
+        // In a real app, this would trigger a local notification
+        console.log('Wellness check reminder: Time to check in!');
       }
+
+      // Check for prolonged inactivity
+      if (hoursSinceActivity >= settings.wellnessChecks.autoCheckThreshold) {
+        const existingInactivityAlert = await checkForExistingAlert('no_activity');
+        if (!existingInactivityAlert) {
+          await addWellnessAlert({
+            type: 'no_activity',
+            message: `No phone activity detected for ${hoursSinceActivity} hours. Last activity: ${new Date(Date.now() - hoursSinceActivity * 60 * 60 * 1000).toLocaleString()}.`,
+            acknowledged: false,
+            familyMemberIds: deviceInfo?.familyMembers || [],
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error in wellness check:', error);
     }
   }, [
-    settings?.wellnessChecks,
+    settings?.wellnessChecks?.enabled,
+    settings?.wellnessChecks?.checkInTime,
+    settings?.wellnessChecks?.reminderTime,
+    settings?.wellnessChecks?.autoCheckThreshold,
     getTodaysCheckIn,
     getHoursSinceLastActivity,
     addWellnessAlert,

@@ -35,12 +35,28 @@ export default function AppTile({ tile, size, onPress }: AppTileProps) {
       case 'messages':
         if (Platform.OS !== 'web') {
           try {
+            // Try to open the default messaging app
             await Linking.openURL('sms:');
           } catch {
             Alert.alert('Messages', 'Unable to open messages app');
           }
         } else {
-          Alert.alert('Messages', 'Messages functionality is available on mobile devices');
+          // For web, show a helpful message
+          Alert.alert(
+            'Messages', 
+            'Messages functionality is available on mobile devices. On web, you can use your phone\'s messaging app or web-based messaging services.',
+            [
+              { text: 'OK', style: 'default' },
+              { 
+                text: 'Open Web Messages', 
+                onPress: () => {
+                  if (typeof window !== 'undefined') {
+                    window.open('https://messages.google.com/web', '_blank');
+                  }
+                }
+              }
+            ]
+          );
         }
         break;
       case 'camera':
@@ -62,22 +78,69 @@ export default function AppTile({ tile, size, onPress }: AppTileProps) {
       case 'photos':
         if (Platform.OS !== 'web') {
           try {
-            await Linking.openURL('photos-redirect://');
+            // Try different photo app URLs based on platform
+            if (Platform.OS === 'ios') {
+              await Linking.openURL('photos-redirect://');
+            } else {
+              // Android - try to open gallery
+              await Linking.openURL('content://media/external/images/media');
+            }
           } catch {
-            Alert.alert('Photos', 'Unable to open photos app');
+            Alert.alert('Photos', 'Unable to open photos app. Please open your device\'s photo gallery manually.');
           }
         } else {
-          Alert.alert('Photos', 'Photos functionality is available on mobile devices');
+          Alert.alert(
+            'Photos', 
+            'Photos functionality is available on mobile devices. On web, you can access photos through your browser or cloud storage.',
+            [
+              { text: 'OK', style: 'default' },
+              { 
+                text: 'Open Google Photos', 
+                onPress: () => {
+                  if (typeof window !== 'undefined') {
+                    window.open('https://photos.google.com', '_blank');
+                  }
+                }
+              }
+            ]
+          );
         }
         break;
       case 'weather':
-        Alert.alert('Weather', 'Weather app integration coming soon');
+        if (Platform.OS !== 'web') {
+          try {
+            // Try to open weather app
+            await Linking.openURL('weather://');
+          } catch {
+            // Fallback to web weather
+            await Linking.openURL('https://weather.com');
+          }
+        } else {
+          if (typeof window !== 'undefined') {
+            window.open('https://weather.com', '_blank');
+          }
+        }
         break;
       case 'news':
-        Alert.alert('News', 'News app integration coming soon');
+        if (Platform.OS !== 'web') {
+          try {
+            // Try to open news app
+            await Linking.openURL('news://');
+          } catch {
+            // Fallback to web news
+            await Linking.openURL('https://news.google.com');
+          }
+        } else {
+          if (typeof window !== 'undefined') {
+            window.open('https://news.google.com', '_blank');
+          }
+        }
         break;
       default:
-        Alert.alert(tile.name, `${tile.name} functionality coming soon`);
+        Alert.alert(
+          tile.name, 
+          `${tile.name} functionality is being prepared. This app will connect to your device's built-in apps when available.`
+        );
     }
   };
 

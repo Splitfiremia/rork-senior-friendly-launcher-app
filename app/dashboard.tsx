@@ -3,20 +3,46 @@ import {
   View,
   Text,
   StyleSheet,
+  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
-  ActivityIndicator,
+  TextInput,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { useRouter } from 'expo-router';
+import {
+  Users,
+  Shield,
+  Settings,
+  Battery,
+  Bell,
+  Heart,
+  Phone,
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Smartphone,
+  Link,
+  LogOut,
+} from 'lucide-react-native';
 import { useDashboard } from '@/hooks/dashboard-context';
-import QRCode from 'react-native-qrcode-svg';
-import { Shield, Users, Smartphone, Link, LogOut, RefreshCw } from 'lucide-react-native';
+import { useAdmin } from '@/hooks/admin-context';
+import { COLORS, TEXT_SIZES } from '@/constants/launcher-config';
+import { useLauncher } from '@/hooks/launcher-context';
+
+type TabType = 'family' | 'admin' | 'settings';
 
 export default function DashboardScreen() {
+  const router = useRouter();
+  const { settings } = useLauncher();
+  const textSizes = TEXT_SIZES[settings.textSize];
+  const [activeTab, setActiveTab] = useState<TabType>('family');
+  const [pairingCode, setPairingCode] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+
+  // Dashboard context
   const {
     deviceId,
     deviceInfo,
@@ -26,73 +52,150 @@ export default function DashboardScreen() {
     generatePairingCode,
     pairDevice,
     authenticateFamilyMember,
-    logout,
+    reminders,
+    activeAlerts,
+    addReminder,
+    deleteReminder,
+    acknowledgeAlert,
+    logout: dashboardLogout,
     unpairDevice,
   } = useDashboard();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showQR, setShowQR] = useState(false);
-
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await authenticateFamilyMember({ email, password });
-      Alert.alert('Success', 'Logged in successfully');
-    } catch {
-      Alert.alert('Error', 'Failed to login');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Admin context
+  const {
+    session: adminSession,
+    systemStats,
+    isAuthenticated: isAdminAuthenticated,
+    login: adminLogin,
+    logout: adminLogout,
+  } = useAdmin();
 
   const handlePairDevice = async () => {
-    setIsLoading(true);
+    if (!pairingCode.trim()) {
+      Alert.alert('Error', 'Please enter a pairing code');
+      return;
+    }
+    
     try {
-      await pairDevice('mock-token');
-      Alert.alert('Success', 'Device paired successfully');
-      setShowQR(false);
-    } catch {
-      Alert.alert('Error', 'Failed to pair device');
-    } finally {
-      setIsLoading(false);
+      await pairDevice(pairingCode);
+      Alert.alert('Success', 'Device paired successfully!');
+      setPairingCode('');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pair device. Please check the pairing code.');
     }
   };
 
-  const pairingCode = generatePairingCode();
+  const handleAuthenticateFamily = async () => {
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+    
+    try {
+      await authenticateFamilyMember({ email: adminEmail, password: adminPassword });
+      Alert.alert('Success', 'Authenticated successfully!');
+      setAdminEmail('');
+      setAdminPassword('');
+    } catch (error) {
+      Alert.alert('Error', 'Authentication failed. Please check your credentials.');
+    }
+  };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen
-        options={{
-          title: 'Family Dashboard',
-          headerStyle: styles.header,
-          headerTitleStyle: styles.headerTitle,
-        }}
+  const handleAdminLogin = async () => {
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
+    
+    try {
+      await adminLogin({ email: adminEmail, password: adminPassword });
+      Alert.alert('Success', 'Admin login successful!');
+      setAdminEmail('');
+      setAdminPassword('');
+    } catch (error) {
+      Alert.alert('Error', 'Admin login failed. Please check your credentials.');
+    }
+  };
+
+  const handleAddReminder = () => {
+    if (Platform.OS === 'web') {
+      const text = prompt('Enter reminder text:');
+      if (text?.trim()) {
+        addReminderWithText(text);
+      }
+    } else {
+      Alert.prompt(
+        'Add Reminder',
+        'Enter reminder text:',
+        async (text) => {
+          if (text?.trim()) {
+            addReminderWithText(text);
+          }
+        }
+      );
+    }
+  };
+
+  const addReminderWithText = async (text: string) => {
+    try {
+      await addReminder({
+        type: 'medication',
+        title: text,
+        description: text,
+        time: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
+        isActive: true,
+        createdBy: session?.familyMember.id || 'unknown',
+      });
+      Alert.alert('Success', 'Reminder added!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add reminder');
+    }
+  };
+
+  const TabButton = ({ tab, title, icon: Icon }: { tab: TabType; title: string; icon: React.ComponentType<any> }) => (
+    <TouchableOpacity
+      style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
+      onPress={() => setActiveTab(tab)}
+    >
+      <Icon 
+        color={activeTab === tab ? COLORS.primary : COLORS.textSecondary} 
+        size={20} 
       />
-      
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Device Status */}
-        <View style={styles.statusCard}>
+      <Text 
+        style={[
+          styles.tabButtonText, 
+          { fontSize: textSizes.body },
+          activeTab === tab && styles.activeTabButtonText
+        ]}
+      >
+        {title}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const renderFamilyTab = () => (
+    <ScrollView style={styles.tabContent}>
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>Device Status</Text>
+        
+        <View style={styles.card}>
           <View style={styles.statusHeader}>
-            <Smartphone size={24} color="#4A90E2" />
-            <Text style={styles.statusTitle}>Device Status</Text>
+            <Smartphone size={24} color={COLORS.primary} />
+            <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>Device Information</Text>
           </View>
           
           <View style={styles.statusInfo}>
-            <Text style={styles.statusLabel}>Device ID:</Text>
-            <Text style={styles.statusValue}>{deviceId || 'Not initialized'}</Text>
+            <Text style={[styles.statusLabel, { fontSize: textSizes.body }]}>Device ID:</Text>
+            <Text style={[styles.statusValue, { fontSize: textSizes.body }]}>{deviceId || 'Not initialized'}</Text>
           </View>
           
           <View style={styles.statusInfo}>
-            <Text style={styles.statusLabel}>Pairing Status:</Text>
-            <Text style={[styles.statusValue, isPaired ? styles.statusOnline : styles.statusOffline]}>
+            <Text style={[styles.statusLabel, { fontSize: textSizes.body }]}>Status:</Text>
+            <Text style={[
+              styles.statusValue, 
+              { fontSize: textSizes.body },
+              isPaired ? styles.statusOnline : styles.statusOffline
+            ]}>
               {isPaired ? 'Paired' : 'Not Paired'}
             </Text>
           </View>
@@ -100,143 +203,277 @@ export default function DashboardScreen() {
           {deviceInfo && (
             <>
               <View style={styles.statusInfo}>
-                <Text style={styles.statusLabel}>Device Name:</Text>
-                <Text style={styles.statusValue}>{deviceInfo.name}</Text>
+                <Text style={[styles.statusLabel, { fontSize: textSizes.body }]}>Name:</Text>
+                <Text style={[styles.statusValue, { fontSize: textSizes.body }]}>{deviceInfo.name}</Text>
               </View>
               <View style={styles.statusInfo}>
-                <Text style={styles.statusLabel}>Last Sync:</Text>
-                <Text style={styles.statusValue}>
+                <Text style={[styles.statusLabel, { fontSize: textSizes.body }]}>Last Sync:</Text>
+                <Text style={[styles.statusValue, { fontSize: textSizes.body }]}>
                   {new Date(deviceInfo.lastSync).toLocaleString()}
                 </Text>
               </View>
             </>
           )}
         </View>
-
-        {/* Authentication Section */}
-        {!isAuthenticated ? (
-          <View style={styles.authCard}>
-            <View style={styles.authHeader}>
-              <Shield size={24} color="#4A90E2" />
-              <Text style={styles.authTitle}>Family Member Login</Text>
-            </View>
-            
+        
+        {!isPaired && (
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>Pair Device</Text>
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              Enter the pairing code from your family member&apos;s device:
+            </Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { fontSize: textSizes.body }]}
+              placeholder="Enter pairing code"
+              value={pairingCode}
+              onChangeText={setPairingCode}
+            />
+            <TouchableOpacity style={styles.primaryButton} onPress={handlePairDevice}>
+              <Text style={[styles.primaryButtonText, { fontSize: textSizes.button }]}>Pair Device</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.divider} />
+            
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              Or generate a pairing code for others to scan:
+            </Text>
+            <TouchableOpacity 
+              style={styles.secondaryButton} 
+              onPress={() => {
+                const code = generatePairingCode();
+                if (code) {
+                  Alert.alert('Pairing Code', code);
+                }
+              }}
+            >
+              <Text style={[styles.secondaryButtonText, { fontSize: textSizes.button }]}>Generate Code</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {!isAuthenticated && isPaired && (
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>Family Access</Text>
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              Sign in to manage reminders and monitor wellness:
+            </Text>
+            <TextInput
+              style={[styles.input, { fontSize: textSizes.body }]}
               placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
+              value={adminEmail}
+              onChangeText={setAdminEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              testID="email-input"
             />
-            
             <TextInput
-              style={styles.input}
+              style={[styles.input, { fontSize: textSizes.body }]}
               placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
+              value={adminPassword}
+              onChangeText={setAdminPassword}
               secureTextEntry
-              testID="password-input"
             />
-            
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={handleLogin}
-              disabled={isLoading}
-              testID="login-button"
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.loginButtonText}>Login</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.authCard}>
-            <View style={styles.authHeader}>
-              <Users size={24} color="#4A90E2" />
-              <Text style={styles.authTitle}>Logged In</Text>
-            </View>
-            
-            <Text style={styles.userInfo}>
-              {session?.familyMember.name} ({session?.familyMember.email})
-            </Text>
-            
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={logout}
-              testID="logout-button"
-            >
-              <LogOut size={20} color="#FF6B6B" />
-              <Text style={styles.logoutButtonText}>Logout</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={handleAuthenticateFamily}>
+              <Text style={[styles.primaryButtonText, { fontSize: textSizes.button }]}>Sign In</Text>
             </TouchableOpacity>
           </View>
         )}
+      </View>
 
-        {/* Pairing Section */}
-        {!isPaired && (
-          <View style={styles.pairingCard}>
-            <View style={styles.pairingHeader}>
-              <Link size={24} color="#4A90E2" />
-              <Text style={styles.pairingTitle}>Device Pairing</Text>
-            </View>
-            
-            {showQR && pairingCode ? (
-              <View style={styles.qrContainer}>
-                <Text style={styles.qrInstructions}>
-                  Scan this QR code from the family dashboard web app
-                </Text>
-                <View style={styles.qrCodeWrapper}>
-                  {Platform.OS === 'web' ? (
-                    <View style={styles.qrPlaceholder}>
-                      <Text style={styles.qrPlaceholderText}>QR Code</Text>
-                      <Text style={styles.qrData}>{pairingCode.substring(0, 20)}...</Text>
-                    </View>
-                  ) : (
-                    <QRCode
-                      value={pairingCode}
-                      size={200}
-                      backgroundColor="white"
-                      color="black"
-                    />
-                  )}
-                </View>
-                <TouchableOpacity
-                  style={styles.pairButton}
-                  onPress={handlePairDevice}
-                  disabled={isLoading}
-                  testID="pair-button"
-                >
-                  {isLoading ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Link size={20} color="#FFFFFF" />
-                      <Text style={styles.pairButtonText}>Simulate Pairing</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+      {isAuthenticated && (
+        <>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>Active Alerts</Text>
+            {activeAlerts.length === 0 ? (
+              <View style={styles.card}>
+                <Text style={[styles.cardText, { fontSize: textSizes.body }]}>No active alerts</Text>
               </View>
             ) : (
-              <TouchableOpacity
-                style={styles.showQRButton}
-                onPress={() => setShowQR(true)}
-                testID="show-qr-button"
-              >
-                <Text style={styles.showQRButtonText}>Show QR Code for Pairing</Text>
-              </TouchableOpacity>
+              activeAlerts.map((alert) => (
+                <View key={alert.id} style={[styles.card, styles.alertCard]}>
+                  <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>
+                    {alert.reminder.title}
+                  </Text>
+                  <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+                    {alert.reminder.description || 'No description'}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.primaryButton} 
+                    onPress={() => acknowledgeAlert(alert.id)}
+                  >
+                    <Text style={[styles.primaryButtonText, { fontSize: textSizes.button }]}>Acknowledge</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
             )}
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>Reminders</Text>
+              <TouchableOpacity style={styles.addButton} onPress={handleAddReminder}>
+                <Plus color={COLORS.primary} size={24} />
+              </TouchableOpacity>
+            </View>
+            
+            {reminders.length === 0 ? (
+              <View style={styles.card}>
+                <Text style={[styles.cardText, { fontSize: textSizes.body }]}>No reminders set</Text>
+              </View>
+            ) : (
+              reminders.map((reminder) => (
+                <View key={reminder.id} style={styles.card}>
+                  <View style={styles.reminderHeader}>
+                    <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>
+                      {reminder.title}
+                    </Text>
+                    <TouchableOpacity onPress={() => deleteReminder(reminder.id)}>
+                      <Trash2 color={COLORS.error} size={20} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+                    {reminder.description || 'No description'}
+                  </Text>
+                  <Text style={[styles.cardText, { fontSize: textSizes.body - 2 }]}>
+                    Scheduled: {new Date(reminder.time).toLocaleString()}
+                  </Text>
+                </View>
+              ))
+            )}
+          </View>
+        </>
+      )}
+    </ScrollView>
+  );
+
+  const renderAdminTab = () => (
+    <ScrollView style={styles.tabContent}>
+      {!isAdminAuthenticated ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>Admin Login</Text>
+          <View style={styles.card}>
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              Use admin@careconnect.app / admin123 for demo
+            </Text>
+            <TextInput
+              style={[styles.input, { fontSize: textSizes.body }]}
+              placeholder="Admin Email"
+              value={adminEmail}
+              onChangeText={setAdminEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={[styles.input, { fontSize: textSizes.body }]}
+              placeholder="Admin Password"
+              value={adminPassword}
+              onChangeText={setAdminPassword}
+              secureTextEntry
+            />
+            <TouchableOpacity style={styles.primaryButton} onPress={handleAdminLogin}>
+              <Text style={[styles.primaryButtonText, { fontSize: textSizes.button }]}>Admin Login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>System Overview</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Users color={COLORS.primary} size={32} />
+                <Text style={[styles.statNumber, { fontSize: textSizes.large }]}>
+                  {systemStats?.totalUsers?.toLocaleString() || '0'}
+                </Text>
+                <Text style={[styles.statLabel, { fontSize: textSizes.body }]}>Total Users</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Shield color={COLORS.success} size={32} />
+                <Text style={[styles.statNumber, { fontSize: textSizes.large }]}>
+                  {systemStats?.activeDevices?.toLocaleString() || '0'}
+                </Text>
+                <Text style={[styles.statLabel, { fontSize: textSizes.body }]}>Active Devices</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Bell color={COLORS.warning} size={32} />
+                <Text style={[styles.statNumber, { fontSize: textSizes.large }]}>
+                  {systemStats?.supportTickets?.open || '0'}
+                </Text>
+                <Text style={[styles.statLabel, { fontSize: textSizes.body }]}>Open Tickets</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Heart color={COLORS.error} size={32} />
+                <Text style={[styles.statNumber, { fontSize: textSizes.large }]}>
+                  {systemStats?.premiumSubscriptions?.toLocaleString() || '0'}
+                </Text>
+                <Text style={[styles.statLabel, { fontSize: textSizes.body }]}>Premium Users</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>Admin Actions</Text>
+            <View style={styles.card}>
+              <TouchableOpacity style={styles.adminAction}>
+                <Users color={COLORS.primary} size={24} />
+                <Text style={[styles.adminActionText, { fontSize: textSizes.body }]}>Manage Users</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.adminAction}>
+                <Bell color={COLORS.warning} size={24} />
+                <Text style={[styles.adminActionText, { fontSize: textSizes.body }]}>Support Tickets</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.adminAction}>
+                <Settings color={COLORS.textSecondary} size={24} />
+                <Text style={[styles.adminActionText, { fontSize: textSizes.body }]}>System Settings</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </>
+      )}
+    </ScrollView>
+  );
+
+  const renderSettingsTab = () => (
+    <ScrollView style={styles.tabContent}>
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>Account</Text>
+        
+        {isAuthenticated && (
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>Family Member</Text>
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              {session?.familyMember.name}
+            </Text>
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              {session?.familyMember.email}
+            </Text>
+            <TouchableOpacity style={styles.dangerButton} onPress={dashboardLogout}>
+              <LogOut size={20} color="white" />
+              <Text style={[styles.dangerButtonText, { fontSize: textSizes.button }]}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {isAdminAuthenticated && (
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>Admin Account</Text>
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              {adminSession?.user.name}
+            </Text>
+            <Text style={[styles.cardText, { fontSize: textSizes.body }]}>
+              {adminSession?.user.email}
+            </Text>
+            <TouchableOpacity style={styles.dangerButton} onPress={adminLogout}>
+              <LogOut size={20} color="white" />
+              <Text style={[styles.dangerButtonText, { fontSize: textSizes.button }]}>Admin Sign Out</Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {/* Unpair Device */}
         {isPaired && (
-          <View style={styles.dangerZone}>
-            <Text style={styles.dangerTitle}>Danger Zone</Text>
-            <TouchableOpacity
-              style={styles.unpairButton}
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, { fontSize: textSizes.subtitle }]}>Device Management</Text>
+            <TouchableOpacity 
+              style={styles.dangerButton} 
               onPress={() => {
                 Alert.alert(
                   'Unpair Device',
@@ -247,14 +484,61 @@ export default function DashboardScreen() {
                   ]
                 );
               }}
-              testID="unpair-button"
             >
-              <RefreshCw size={20} color="#FF6B6B" />
-              <Text style={styles.unpairButtonText}>Unpair Device</Text>
+              <Link size={20} color="white" />
+              <Text style={[styles.dangerButtonText, { fontSize: textSizes.button }]}>Unpair Device</Text>
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { fontSize: textSizes.subtitle }]}>Quick Actions</Text>
+        <View style={styles.card}>
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => router.push('/guardian-status')}
+          >
+            <Battery color={COLORS.primary} size={24} />
+            <Text style={[styles.quickActionText, { fontSize: textSizes.body }]}>Guardian Status</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => router.push('/(tabs)/reminders')}
+          >
+            <Bell color={COLORS.warning} size={24} />
+            <Text style={[styles.quickActionText, { fontSize: textSizes.body }]}>Reminders</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.quickAction}
+            onPress={() => router.push('/(tabs)/contacts')}
+          >
+            <Phone color={COLORS.success} size={24} />
+            <Text style={[styles.quickActionText, { fontSize: textSizes.body }]}>Emergency Contacts</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ScrollView>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <ArrowLeft color={COLORS.text} size={24} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { fontSize: textSizes.title }]}>CareConnect Dashboard</Text>
+      </View>
+
+      <View style={styles.tabBar}>
+        <TabButton tab="family" title="Family" icon={Users} />
+        <TabButton tab="admin" title="Admin" icon={Shield} />
+        <TabButton tab="settings" title="Settings" icon={Settings} />
+      </View>
+
+      {activeTab === 'family' && renderFamilyTab()}
+      {activeTab === 'admin' && renderAdminTab()}
+      {activeTab === 'settings' && renderSettingsTab()}
     </SafeAreaView>
   );
 }
@@ -262,230 +546,227 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: COLORS.background,
   },
   header: {
-    backgroundColor: '#4A90E2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: COLORS.cardBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
   },
   headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
+    flex: 1,
+    fontWeight: 'bold',
+    color: COLORS.text,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.cardBackground,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  activeTabButton: {
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+  },
+  tabButtonText: {
+    marginLeft: 8,
+    color: COLORS.textSecondary,
+  },
+  activeTabButtonText: {
+    color: COLORS.primary,
     fontWeight: '600',
   },
-  scrollContent: {
-    padding: 20,
+  tabContent: {
+    flex: 1,
   },
-
-  statusCard: {
-    backgroundColor: '#FFFFFF',
+  section: {
+    padding: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  card: {
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 2,
+  },
+  alertCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.warning,
+  },
+  cardTitle: {
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  cardText: {
+    color: COLORS.textSecondary,
+    marginBottom: 8,
   },
   statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
-  },
-  statusTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 10,
-    color: '#2C3E50',
+    marginBottom: 12,
   },
   statusInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   statusLabel: {
-    fontSize: 14,
-    color: '#7F8C8D',
+    color: COLORS.textSecondary,
   },
   statusValue: {
-    fontSize: 14,
     fontWeight: '500',
-    color: '#2C3E50',
+    color: COLORS.text,
   },
   statusOnline: {
-    color: '#27AE60',
+    color: COLORS.success,
   },
   statusOffline: {
-    color: '#E74C3C',
-  },
-  authCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  authHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  authTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 10,
-    color: '#2C3E50',
+    color: COLORS.error,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: COLORS.border,
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
-    fontSize: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    backgroundColor: COLORS.background,
+    color: COLORS.text,
   },
-  loginButton: {
-    backgroundColor: '#4A90E2',
+  primaryButton: {
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
-    padding: 15,
+    paddingVertical: 12,
     alignItems: 'center',
+    marginBottom: 8,
   },
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  primaryButtonText: {
+    color: 'white',
     fontWeight: '600',
   },
-  userInfo: {
-    fontSize: 16,
-    color: '#2C3E50',
-    marginBottom: 15,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  secondaryButton: {
+    backgroundColor: COLORS.background,
     borderWidth: 1,
-    borderColor: '#FF6B6B',
+    borderColor: COLORS.primary,
     borderRadius: 8,
-    padding: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  logoutButtonText: {
-    color: '#FF6B6B',
-    fontSize: 16,
+  secondaryButtonText: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  dangerButton: {
+    backgroundColor: COLORS.error,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  dangerButtonText: {
+    color: 'white',
+    fontWeight: '600',
     marginLeft: 8,
   },
-  pairingCard: {
-    backgroundColor: '#FFFFFF',
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 16,
+  },
+  addButton: {
+    padding: 8,
+  },
+  reminderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+    padding: 16,
+    alignItems: 'center',
+    width: '48%',
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 2,
   },
-  pairingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+  statNumber: {
+    fontWeight: 'bold',
+    color: COLORS.text,
+    marginTop: 8,
+    marginBottom: 4,
   },
-  pairingTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 10,
-    color: '#2C3E50',
-  },
-  qrContainer: {
-    alignItems: 'center',
-  },
-  qrInstructions: {
-    fontSize: 14,
-    color: '#7F8C8D',
+  statLabel: {
+    color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: 20,
   },
-  qrCodeWrapper: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  qrPlaceholder: {
-    width: 200,
-    height: 200,
-    backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  qrPlaceholderText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#7F8C8D',
-    marginBottom: 10,
-  },
-  qrData: {
-    fontSize: 10,
-    color: '#BDC3C7',
-    textAlign: 'center',
-    paddingHorizontal: 10,
-  },
-  showQRButton: {
-    backgroundColor: '#4A90E2',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-  },
-  showQRButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  pairButton: {
-    flexDirection: 'row',
-    backgroundColor: '#27AE60',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pairButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  dangerZone: {
-    backgroundColor: '#FFF5F5',
-    borderRadius: 12,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#FFE0E0',
-  },
-  dangerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#E74C3C',
-    marginBottom: 15,
-  },
-  unpairButton: {
+  adminAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#FF6B6B',
-    borderRadius: 8,
-    padding: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  unpairButtonText: {
-    color: '#FF6B6B',
-    fontSize: 16,
-    marginLeft: 8,
+  adminActionText: {
+    marginLeft: 12,
+    color: COLORS.text,
+  },
+  quickAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  quickActionText: {
+    marginLeft: 12,
+    color: COLORS.text,
   },
 });

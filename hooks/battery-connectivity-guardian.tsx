@@ -120,7 +120,7 @@ export function useBatteryConnectivityGuardian({
     } catch (error) {
       console.error('Error sending guardian alert:', error);
     }
-  }, [deviceInfo?.familyMembers, addWellnessAlert, lastAlerts]);
+  }, [deviceInfo?.familyMembers, addWellnessAlert]);
 
   // Check battery levels and send alerts
   const checkBatteryAlerts = useCallback(async () => {
@@ -140,7 +140,7 @@ export function useBatteryConnectivityGuardian({
         message: `Phone battery low (${Math.round(level * 100)}%). Please remind to charge the device.`,
       });
     }
-  }, [batteryStatus, sendGuardianAlert]);
+  }, [batteryStatus.level, batteryStatus.isCharging, sendGuardianAlert]);
 
   // Check connectivity and send alerts
   const checkConnectivityAlerts = useCallback(async () => {
@@ -152,7 +152,7 @@ export function useBatteryConnectivityGuardian({
         message: 'Phone has lost internet connection. Unable to receive calls or messages. Please check Wi-Fi or mobile data.',
       });
     }
-  }, [connectivityStatus, sendGuardianAlert]);
+  }, [connectivityStatus.isConnected, connectivityStatus.isInternetReachable, sendGuardianAlert]);
 
   // Set up battery monitoring
   useEffect(() => {
@@ -191,10 +191,13 @@ export function useBatteryConnectivityGuardian({
         
         // Send restoration alert if connection was lost and now restored
         if (!wasConnected && isNowConnected && addWellnessAlert) {
-          sendGuardianAlert({
-            type: 'connectivity_restored',
-            message: 'Phone internet connection restored. Device is back online.',
-          });
+          // Use setTimeout to avoid calling sendGuardianAlert during render
+          setTimeout(() => {
+            sendGuardianAlert({
+              type: 'connectivity_restored',
+              message: 'Phone internet connection restored. Device is back online.',
+            });
+          }, 0);
         }
         
         return {
@@ -206,7 +209,7 @@ export function useBatteryConnectivityGuardian({
     });
 
     return unsubscribe;
-  }, [updateConnectivityStatus, sendGuardianAlert, addWellnessAlert]);
+  }, [updateConnectivityStatus, addWellnessAlert]);
 
   // Periodic checks
   useEffect(() => {
