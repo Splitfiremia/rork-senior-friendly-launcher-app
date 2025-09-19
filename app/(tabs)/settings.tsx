@@ -303,20 +303,7 @@ export default function SettingsScreen() {
             }}
           />
           
-          <SettingRow
-            icon={SettingsIcon}
-            title="Admin Dashboard"
-            value="System Management"
-            onPress={() => {
-              console.log('Admin Dashboard pressed');
-              try {
-                router.push('/admin');
-                console.log('Navigation to admin dashboard initiated');
-              } catch (error) {
-                console.error('Error navigating to admin dashboard:', error);
-              }
-            }}
-          />
+
         </View>
 
         <View style={styles.section}>

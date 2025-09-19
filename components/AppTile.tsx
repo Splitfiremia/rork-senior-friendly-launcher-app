@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 import * as Icons from 'lucide-react-native';
 import { AppTile as AppTileType } from '@/types/launcher';
 import { useLauncher } from '@/hooks/launcher-context';
-import { TEXT_SIZES, COLORS } from '@/constants/launcher-config';
+import { TEXT_SIZES } from '@/constants/launcher-config';
+import { useCameraPermissions } from 'expo-camera';
 
 interface AppTileProps {
   tile: AppTileType;
@@ -19,7 +20,9 @@ export default function AppTile({ tile, size, onPress }: AppTileProps) {
   
   const IconComponent = Icons[tile.icon as keyof typeof Icons] as React.ComponentType<any>;
 
-  const handlePress = () => {
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+  const handlePress = async () => {
     if (onPress) {
       onPress();
       return;
@@ -31,25 +34,50 @@ export default function AppTile({ tile, size, onPress }: AppTileProps) {
         break;
       case 'messages':
         if (Platform.OS !== 'web') {
-          Linking.openURL('sms:');
+          try {
+            await Linking.openURL('sms:');
+          } catch {
+            Alert.alert('Messages', 'Unable to open messages app');
+          }
         } else {
-          Alert.alert('Messages', 'Messages app would open here');
+          Alert.alert('Messages', 'Messages functionality is available on mobile devices');
         }
         break;
       case 'camera':
-        Alert.alert('Camera', 'Camera app would open here');
+        if (Platform.OS === 'web') {
+          // For web, we can still show camera but with limitations
+          router.push('/camera');
+        } else {
+          // For mobile, check permissions first
+          if (!cameraPermission?.granted) {
+            const permission = await requestCameraPermission();
+            if (!permission.granted) {
+              Alert.alert('Camera Permission', 'Camera permission is required to use this feature');
+              return;
+            }
+          }
+          router.push('/camera');
+        }
         break;
       case 'photos':
-        Alert.alert('Photos', 'Photos app would open here');
+        if (Platform.OS !== 'web') {
+          try {
+            await Linking.openURL('photos-redirect://');
+          } catch {
+            Alert.alert('Photos', 'Unable to open photos app');
+          }
+        } else {
+          Alert.alert('Photos', 'Photos functionality is available on mobile devices');
+        }
         break;
       case 'weather':
-        Alert.alert('Weather', 'Weather app would open here');
+        Alert.alert('Weather', 'Weather app integration coming soon');
         break;
       case 'news':
-        Alert.alert('News', 'News app would open here');
+        Alert.alert('News', 'News app integration coming soon');
         break;
       default:
-        Alert.alert(tile.name, `${tile.name} would open here`);
+        Alert.alert(tile.name, `${tile.name} functionality coming soon`);
     }
   };
 

@@ -1,27 +1,33 @@
 import { useEffect, useCallback } from 'react';
 import { Platform, AppState, AppStateStatus } from 'react-native';
-import { useLauncher } from '@/hooks/launcher-context';
-import { useDashboard } from '@/hooks/dashboard-context';
 import { useBatteryConnectivityGuardian } from '@/hooks/battery-connectivity-guardian';
 
-export function useWellnessMonitoring() {
-  const {
-    settings,
-    recordActivity,
-    addWellnessCheckIn,
+export function useWellnessMonitoring({
+  settings,
+  recordActivity,
+  addWellnessCheckIn,
+  addWellnessAlert,
+  getTodaysCheckIn,
+  getHoursSinceLastActivity,
+  deviceInfo,
+}: {
+  settings?: { wellnessChecks: any };
+  recordActivity?: () => void;
+  addWellnessCheckIn?: (checkIn: any) => Promise<any>;
+  addWellnessAlert?: (alert: any) => Promise<any>;
+  getTodaysCheckIn?: () => any;
+  getHoursSinceLastActivity?: () => number;
+  deviceInfo?: { familyMembers?: string[] } | null;
+} = {}) {
+  // Initialize battery and connectivity guardian with dependencies
+  const { isGuardianActive } = useBatteryConnectivityGuardian({
+    deviceInfo,
     addWellnessAlert,
-    getTodaysCheckIn,
-    getHoursSinceLastActivity,
-  } = useLauncher();
-  
-  const { deviceInfo } = useDashboard();
-  
-  // Initialize battery and connectivity guardian
-  const { isGuardianActive } = useBatteryConnectivityGuardian();
+  });
 
   // Record activity when app becomes active
   const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
-    if (nextAppState === 'active') {
+    if (nextAppState === 'active' && recordActivity) {
       recordActivity();
     }
   }, [recordActivity]);
@@ -35,7 +41,7 @@ export function useWellnessMonitoring() {
 
   // Check for missed check-ins and inactivity
   const performWellnessCheck = useCallback(async () => {
-    if (!settings.wellnessChecks.enabled) return;
+    if (!settings?.wellnessChecks?.enabled || !getTodaysCheckIn || !getHoursSinceLastActivity || !addWellnessAlert) return;
 
     const now = new Date();
     const todaysCheckIn = getTodaysCheckIn();
@@ -83,7 +89,7 @@ export function useWellnessMonitoring() {
       }
     }
   }, [
-    settings.wellnessChecks,
+    settings?.wellnessChecks,
     getTodaysCheckIn,
     getHoursSinceLastActivity,
     addWellnessAlert,
@@ -93,7 +99,7 @@ export function useWellnessMonitoring() {
 
   // Auto check-in if activity is detected and no manual check-in today
   const performAutoCheckIn = useCallback(async () => {
-    if (!settings.wellnessChecks.enabled) return;
+    if (!settings?.wellnessChecks?.enabled || !getTodaysCheckIn || !getHoursSinceLastActivity || !addWellnessCheckIn) return;
 
     const todaysCheckIn = getTodaysCheckIn();
     const hoursSinceActivity = getHoursSinceLastActivity();
@@ -115,8 +121,8 @@ export function useWellnessMonitoring() {
       }
     }
   }, [
-    settings.wellnessChecks.enabled,
-    settings.wellnessChecks.checkInTime,
+    settings?.wellnessChecks?.enabled,
+    settings?.wellnessChecks?.checkInTime,
     getTodaysCheckIn,
     getHoursSinceLastActivity,
     addWellnessCheckIn,
@@ -125,7 +131,9 @@ export function useWellnessMonitoring() {
   // Set up monitoring
   useEffect(() => {
     // Record initial activity
-    recordActivity();
+    if (recordActivity) {
+      recordActivity();
+    }
 
     // Set up app state listener
     const subscription = AppState.addEventListener('change', handleAppStateChange);

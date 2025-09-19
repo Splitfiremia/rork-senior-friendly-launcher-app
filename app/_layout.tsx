@@ -35,11 +35,13 @@ function RootLayoutNav() {
           headerShown: false,
         }} 
       />
+
       <Stack.Screen 
-        name="admin" 
+        name="camera" 
         options={{ 
-          title: "Admin Dashboard",
+          title: "Camera",
           headerShown: false,
+          presentation: "modal",
         }} 
       />
     </Stack>

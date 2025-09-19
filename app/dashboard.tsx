@@ -45,7 +45,7 @@ export default function DashboardScreen() {
     try {
       await authenticateFamilyMember({ email, password });
       Alert.alert('Success', 'Logged in successfully');
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to login');
     } finally {
       setIsLoading(false);
@@ -58,7 +58,7 @@ export default function DashboardScreen() {
       await pairDevice('mock-token');
       Alert.alert('Success', 'Device paired successfully');
       setShowQR(false);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to pair device');
     } finally {
       setIsLoading(false);
@@ -275,6 +275,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
   },
+
   statusCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,

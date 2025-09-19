@@ -2,8 +2,6 @@ import { useEffect, useCallback, useState } from 'react';
 import { Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import * as Battery from 'expo-battery';
-import { useDashboard } from '@/hooks/dashboard-context';
-import { useLauncher } from '@/hooks/launcher-context';
 
 interface BatteryStatus {
   level: number;
@@ -19,7 +17,13 @@ interface ConnectivityStatus {
 
 type GuardianAlertType = 'low_battery' | 'battery_critical' | 'connectivity_lost' | 'connectivity_restored';
 
-export function useBatteryConnectivityGuardian() {
+export function useBatteryConnectivityGuardian({
+  deviceInfo,
+  addWellnessAlert,
+}: {
+  deviceInfo?: { familyMembers?: string[] } | null;
+  addWellnessAlert?: (alert: any) => Promise<any>;
+} = {}) {
   const [batteryStatus, setBatteryStatus] = useState<BatteryStatus>({
     level: 1,
     isCharging: false,
@@ -30,9 +34,6 @@ export function useBatteryConnectivityGuardian() {
     isInternetReachable: null,
   });
   const [lastAlerts, setLastAlerts] = useState<{ [key: string]: number }>({});
-  
-  const { deviceInfo } = useDashboard();
-  const { addWellnessAlert } = useLauncher();
 
   // Battery monitoring
   const updateBatteryStatus = useCallback(async () => {
@@ -85,41 +86,41 @@ export function useBatteryConnectivityGuardian() {
 
   // Send alert to family portal
   const sendGuardianAlert = useCallback(async (alert: { type: GuardianAlertType; message: string }) => {
-    if (!deviceInfo?.familyMembers?.length) {
-      console.log('No family members to alert');
+    if (!deviceInfo?.familyMembers?.length || !addWellnessAlert) {
+      console.log('No family members to alert or no alert function available');
       return;
     }
 
     // Prevent spam - don't send same alert type within 30 minutes
     const now = Date.now();
-    setLastAlerts(prev => {
-      const lastAlertTime = prev[alert.type] || 0;
-      const thirtyMinutes = 30 * 60 * 1000;
-      
-      if (now - lastAlertTime < thirtyMinutes) {
-        console.log(`Skipping ${alert.type} alert - too recent`);
-        return prev;
-      }
+    const lastAlertTime = lastAlerts[alert.type] || 0;
+    const thirtyMinutes = 30 * 60 * 1000;
+    
+    if (now - lastAlertTime < thirtyMinutes) {
+      console.log(`Skipping ${alert.type} alert - too recent`);
+      return;
+    }
 
+    try {
       // Send the alert
-      addWellnessAlert({
+      await addWellnessAlert({
         type: alert.type,
         message: alert.message,
         acknowledged: false,
         familyMemberIds: deviceInfo.familyMembers,
-      }).then(() => {
-        console.log(`Guardian alert sent: ${alert.type}`);
-      }).catch((error) => {
-        console.error('Error sending guardian alert:', error);
       });
-
+      
+      console.log(`Guardian alert sent: ${alert.type}`);
+      
       // Update last alert time
-      return {
+      setLastAlerts(prev => ({
         ...prev,
         [alert.type]: now,
-      };
-    });
-  }, [deviceInfo?.familyMembers, addWellnessAlert]);
+      }));
+    } catch (error) {
+      console.error('Error sending guardian alert:', error);
+    }
+  }, [deviceInfo?.familyMembers, addWellnessAlert, lastAlerts]);
 
   // Check battery levels and send alerts
   const checkBatteryAlerts = useCallback(async () => {
@@ -189,7 +190,7 @@ export function useBatteryConnectivityGuardian() {
         const wasConnected = prevStatus.isConnected;
         
         // Send restoration alert if connection was lost and now restored
-        if (!wasConnected && isNowConnected) {
+        if (!wasConnected && isNowConnected && addWellnessAlert) {
           sendGuardianAlert({
             type: 'connectivity_restored',
             message: 'Phone internet connection restored. Device is back online.',
@@ -205,7 +206,7 @@ export function useBatteryConnectivityGuardian() {
     });
 
     return unsubscribe;
-  }, [updateConnectivityStatus, sendGuardianAlert]);
+  }, [updateConnectivityStatus, sendGuardianAlert, addWellnessAlert]);
 
   // Periodic checks
   useEffect(() => {
