@@ -48,8 +48,17 @@ export default function SettingsScreen() {
 
   const handleTextSizeChange = useCallback(async () => {
     console.log('handleTextSizeChange called');
+    console.log('Current settings:', settings);
+    console.log('UpdateSettings function type:', typeof updateSettings);
+    
+    if (!updateSettings) {
+      console.error('updateSettings function is not available');
+      Alert.alert('Error', 'Settings update function not available');
+      return;
+    }
+    
     try {
-      const sizes: Array<LauncherSettings['textSize']> = ['medium', 'large', 'extra-large'];
+      const sizes: LauncherSettings['textSize'][] = ['medium', 'large', 'extra-large'];
       const currentIndex = sizes.indexOf(settings.textSize);
       const nextIndex = (currentIndex + 1) % sizes.length;
       console.log('Updating text size from', settings.textSize, 'to', sizes[nextIndex]);
@@ -58,14 +67,23 @@ export default function SettingsScreen() {
       console.log('Text size updated successfully to:', sizes[nextIndex]);
     } catch (error) {
       console.error('Error updating text size:', error);
-      Alert.alert('Error', 'Failed to update text size');
+      Alert.alert('Error', 'Failed to update text size: ' + (error as Error).message);
     }
-  }, [settings.textSize, updateSettings]);
+  }, [settings, updateSettings]);
 
   const handleGridSizeChange = useCallback(async () => {
     console.log('handleGridSizeChange called');
+    console.log('Current settings:', settings);
+    console.log('UpdateSettings function type:', typeof updateSettings);
+    
+    if (!updateSettings) {
+      console.error('updateSettings function is not available');
+      Alert.alert('Error', 'Settings update function not available');
+      return;
+    }
+    
     try {
-      const grids: Array<LauncherSettings['gridSize']> = ['2x2', '2x3', '3x3'];
+      const grids: LauncherSettings['gridSize'][] = ['2x2', '2x3', '3x3'];
       const currentIndex = grids.indexOf(settings.gridSize);
       const nextIndex = (currentIndex + 1) % grids.length;
       console.log('Updating grid size from', settings.gridSize, 'to', grids[nextIndex]);
@@ -74,9 +92,9 @@ export default function SettingsScreen() {
       console.log('Grid size updated successfully to:', grids[nextIndex]);
     } catch (error) {
       console.error('Error updating grid size:', error);
-      Alert.alert('Error', 'Failed to update grid size');
+      Alert.alert('Error', 'Failed to update grid size: ' + (error as Error).message);
     }
-  }, [settings.gridSize, updateSettings]);
+  }, [settings, updateSettings]);
 
   const handleReset = useCallback(() => {
     Alert.alert(
@@ -88,13 +106,22 @@ export default function SettingsScreen() {
           text: 'Reset', 
           style: 'destructive',
           onPress: async () => {
+            console.log('Reset button pressed');
+            console.log('ResetToDefaults function type:', typeof resetToDefaults);
+            
+            if (!resetToDefaults) {
+              console.error('resetToDefaults function is not available');
+              Alert.alert('Error', 'Reset function not available');
+              return;
+            }
+            
             try {
               await resetToDefaults();
               console.log('Settings reset to defaults');
               Alert.alert('Success', 'Settings have been reset to defaults');
             } catch (error) {
               console.error('Error resetting settings:', error);
-              Alert.alert('Error', 'Failed to reset settings');
+              Alert.alert('Error', 'Failed to reset settings: ' + (error as Error).message);
             }
           },
         },
@@ -193,12 +220,20 @@ export default function SettingsScreen() {
                 value={settings.highContrast}
                 onValueChange={async (value: boolean) => {
                   console.log('High contrast switch changed to:', value);
+                  console.log('UpdateSettings function type:', typeof updateSettings);
+                  
+                  if (!updateSettings) {
+                    console.error('updateSettings function is not available');
+                    Alert.alert('Error', 'Settings update function not available');
+                    return;
+                  }
+                  
                   try {
                     await updateSettings({ highContrast: value });
                     console.log('High contrast set successfully to:', value);
                   } catch (error) {
                     console.error('Error updating high contrast:', error);
-                    Alert.alert('Error', 'Failed to update high contrast setting');
+                    Alert.alert('Error', 'Failed to update high contrast setting: ' + (error as Error).message);
                   }
                 }}
                 trackColor={{ false: COLORS.border, true: COLORS.primary }}
@@ -342,12 +377,20 @@ export default function SettingsScreen() {
                   value={tile.isVisible}
                   onValueChange={async () => {
                     console.log('Switch toggled for app:', tile.name);
+                    console.log('ToggleAppVisibility function type:', typeof toggleAppVisibility);
+                    
+                    if (!toggleAppVisibility) {
+                      console.error('toggleAppVisibility function is not available');
+                      Alert.alert('Error', 'App visibility toggle function not available');
+                      return;
+                    }
+                    
                     try {
                       await toggleAppVisibility(tile.id);
                       console.log('App visibility toggled for:', tile.name);
                     } catch (error) {
                       console.error('Error toggling app visibility:', error);
-                      Alert.alert('Error', 'Failed to update app visibility');
+                      Alert.alert('Error', 'Failed to update app visibility: ' + (error as Error).message);
                     }
                   }}
                   trackColor={{ false: COLORS.border, true: COLORS.primary }}

@@ -1,6 +1,5 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { Platform, AppState, AppStateStatus } from 'react-native';
-import { useBatteryConnectivityGuardian } from '@/hooks/battery-connectivity-guardian';
 
 export function useWellnessMonitoring({
   settings,
@@ -19,18 +18,32 @@ export function useWellnessMonitoring({
   getHoursSinceLastActivity?: () => number;
   deviceInfo?: { familyMembers?: string[] } | null;
 } = {}) {
-  // Initialize battery and connectivity guardian with stable dependencies
-  const { isGuardianActive } = useBatteryConnectivityGuardian({
-    deviceInfo,
-    addWellnessAlert,
-  });
+  // Use refs to avoid circular dependencies
+  const settingsRef = useRef(settings);
+  const recordActivityRef = useRef(recordActivity);
+  const addWellnessCheckInRef = useRef(addWellnessCheckIn);
+  const addWellnessAlertRef = useRef(addWellnessAlert);
+  const getTodaysCheckInRef = useRef(getTodaysCheckIn);
+  const getHoursSinceLastActivityRef = useRef(getHoursSinceLastActivity);
+  const deviceInfoRef = useRef(deviceInfo);
+  
+  // Update refs when props change
+  useEffect(() => {
+    settingsRef.current = settings;
+    recordActivityRef.current = recordActivity;
+    addWellnessCheckInRef.current = addWellnessCheckIn;
+    addWellnessAlertRef.current = addWellnessAlert;
+    getTodaysCheckInRef.current = getTodaysCheckIn;
+    getHoursSinceLastActivityRef.current = getHoursSinceLastActivity;
+    deviceInfoRef.current = deviceInfo;
+  }, [settings, recordActivity, addWellnessCheckIn, addWellnessAlert, getTodaysCheckIn, getHoursSinceLastActivity, deviceInfo]);
 
   // Record activity when app becomes active
   const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
-    if (nextAppState === 'active' && recordActivity) {
-      recordActivity();
+    if (nextAppState === 'active' && recordActivityRef.current) {
+      recordActivityRef.current();
     }
-  }, [recordActivity]);
+  }, []);
 
   // Helper function to check for existing alerts of a specific type today
   const checkForExistingAlert = useCallback(async (alertType: string) => {
@@ -41,20 +54,26 @@ export function useWellnessMonitoring({
 
   // Check for missed check-ins and inactivity
   const performWellnessCheck = useCallback(async () => {
-    if (!settings?.wellnessChecks?.enabled || !getTodaysCheckIn || !getHoursSinceLastActivity || !addWellnessAlert) return;
+    const currentSettings = settingsRef.current;
+    const currentGetTodaysCheckIn = getTodaysCheckInRef.current;
+    const currentGetHoursSinceLastActivity = getHoursSinceLastActivityRef.current;
+    const currentAddWellnessAlert = addWellnessAlertRef.current;
+    const currentDeviceInfo = deviceInfoRef.current;
+    
+    if (!currentSettings?.wellnessChecks?.enabled || !currentGetTodaysCheckIn || !currentGetHoursSinceLastActivity || !currentAddWellnessAlert) return;
 
     try {
       const now = new Date();
-      const todaysCheckIn = getTodaysCheckIn();
-      const hoursSinceActivity = getHoursSinceLastActivity();
+      const todaysCheckIn = currentGetTodaysCheckIn();
+      const hoursSinceActivity = currentGetHoursSinceLastActivity();
 
       // Check if it's past the check-in time and no check-in today
-      const [checkInHour, checkInMinute] = settings.wellnessChecks.checkInTime.split(':').map(Number);
+      const [checkInHour, checkInMinute] = currentSettings.wellnessChecks.checkInTime.split(':').map(Number);
       const checkInTime = new Date();
       checkInTime.setHours(checkInHour, checkInMinute, 0, 0);
 
       // Check if it's past reminder time and no check-in today
-      const [reminderHour, reminderMinute] = settings.wellnessChecks.reminderTime.split(':').map(Number);
+      const [reminderHour, reminderMinute] = currentSettings.wellnessChecks.reminderTime.split(':').map(Number);
       const reminderTime = new Date();
       reminderTime.setHours(reminderHour, reminderMinute, 0, 0);
 
@@ -62,11 +81,11 @@ export function useWellnessMonitoring({
       if (now > checkInTime && !todaysCheckIn) {
         const existingMissedAlert = await checkForExistingAlert('missed_checkin');
         if (!existingMissedAlert) {
-          await addWellnessAlert({
+          await currentAddWellnessAlert({
             type: 'missed_checkin',
-            message: `No check-in received today. Last expected at ${settings.wellnessChecks.checkInTime}.`,
+            message: `No check-in received today. Last expected at ${currentSettings.wellnessChecks.checkInTime}.`,
             acknowledged: false,
-            familyMemberIds: deviceInfo?.familyMembers || [],
+            familyMemberIds: currentDeviceInfo?.familyMembers || [],
           });
         }
       }
@@ -78,68 +97,57 @@ export function useWellnessMonitoring({
       }
 
       // Check for prolonged inactivity
-      if (hoursSinceActivity >= settings.wellnessChecks.autoCheckThreshold) {
+      if (hoursSinceActivity >= currentSettings.wellnessChecks.autoCheckThreshold) {
         const existingInactivityAlert = await checkForExistingAlert('no_activity');
         if (!existingInactivityAlert) {
-          await addWellnessAlert({
+          await currentAddWellnessAlert({
             type: 'no_activity',
             message: `No phone activity detected for ${hoursSinceActivity} hours. Last activity: ${new Date(Date.now() - hoursSinceActivity * 60 * 60 * 1000).toLocaleString()}.`,
             acknowledged: false,
-            familyMemberIds: deviceInfo?.familyMembers || [],
+            familyMemberIds: currentDeviceInfo?.familyMembers || [],
           });
         }
       }
     } catch (error) {
       console.error('Error in wellness check:', error);
     }
-  }, [
-    settings?.wellnessChecks?.enabled,
-    settings?.wellnessChecks?.checkInTime,
-    settings?.wellnessChecks?.reminderTime,
-    settings?.wellnessChecks?.autoCheckThreshold,
-    getTodaysCheckIn,
-    getHoursSinceLastActivity,
-    addWellnessAlert,
-    deviceInfo?.familyMembers,
-    checkForExistingAlert,
-  ]);
+  }, [checkForExistingAlert]);
 
   // Auto check-in if activity is detected and no manual check-in today
   const performAutoCheckIn = useCallback(async () => {
-    if (!settings?.wellnessChecks?.enabled || !getTodaysCheckIn || !getHoursSinceLastActivity || !addWellnessCheckIn) return;
+    const currentSettings = settingsRef.current;
+    const currentGetTodaysCheckIn = getTodaysCheckInRef.current;
+    const currentGetHoursSinceLastActivity = getHoursSinceLastActivityRef.current;
+    const currentAddWellnessCheckIn = addWellnessCheckInRef.current;
+    
+    if (!currentSettings?.wellnessChecks?.enabled || !currentGetTodaysCheckIn || !currentGetHoursSinceLastActivity || !currentAddWellnessCheckIn) return;
 
-    const todaysCheckIn = getTodaysCheckIn();
-    const hoursSinceActivity = getHoursSinceLastActivity();
+    const todaysCheckIn = currentGetTodaysCheckIn();
+    const hoursSinceActivity = currentGetHoursSinceLastActivity();
 
     // If there's recent activity (within 1 hour) and no check-in today, auto check-in
     if (hoursSinceActivity < 1 && !todaysCheckIn) {
       const now = new Date();
-      const [checkInHour, checkInMinute] = settings.wellnessChecks.checkInTime.split(':').map(Number);
+      const [checkInHour, checkInMinute] = currentSettings.wellnessChecks.checkInTime.split(':').map(Number);
       const checkInTime = new Date();
       checkInTime.setHours(checkInHour, checkInMinute, 0, 0);
 
       // Only auto check-in if it's past the expected check-in time
       if (now > checkInTime) {
-        await addWellnessCheckIn({
+        await currentAddWellnessCheckIn({
           type: 'auto',
           status: 'ok',
           message: 'Automatic check-in based on phone activity',
         });
       }
     }
-  }, [
-    settings?.wellnessChecks?.enabled,
-    settings?.wellnessChecks?.checkInTime,
-    getTodaysCheckIn,
-    getHoursSinceLastActivity,
-    addWellnessCheckIn,
-  ]);
+  }, []);
 
   // Set up monitoring
   useEffect(() => {
     // Record initial activity
-    if (recordActivity) {
-      recordActivity();
+    if (recordActivityRef.current) {
+      recordActivityRef.current();
     }
 
     // Set up app state listener
@@ -160,7 +168,7 @@ export function useWellnessMonitoring({
       clearInterval(wellnessInterval);
       clearInterval(autoCheckInterval);
     };
-  }, [handleAppStateChange, performWellnessCheck, performAutoCheckIn, recordActivity]);
+  }, [handleAppStateChange, performWellnessCheck, performAutoCheckIn]);
 
   // Set up background task for iOS/Android (would need expo-background-fetch in production)
   useEffect(() => {
@@ -174,6 +182,6 @@ export function useWellnessMonitoring({
   return {
     performWellnessCheck,
     performAutoCheckIn,
-    isGuardianActive,
+    isGuardianActive: !!deviceInfoRef.current?.familyMembers?.length,
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import * as Battery from 'expo-battery';
@@ -24,6 +24,14 @@ export function useBatteryConnectivityGuardian({
   deviceInfo?: { familyMembers?: string[] } | null;
   addWellnessAlert?: (alert: any) => Promise<any>;
 } = {}) {
+  const deviceInfoRef = useRef(deviceInfo);
+  const addWellnessAlertRef = useRef(addWellnessAlert);
+  
+  // Update refs when props change
+  useEffect(() => {
+    deviceInfoRef.current = deviceInfo;
+    addWellnessAlertRef.current = addWellnessAlert;
+  }, [deviceInfo, addWellnessAlert]);
   const [batteryStatus, setBatteryStatus] = useState<BatteryStatus>({
     level: 1,
     isCharging: false,
@@ -86,7 +94,10 @@ export function useBatteryConnectivityGuardian({
 
   // Send alert to family portal
   const sendGuardianAlert = useCallback(async (alert: { type: GuardianAlertType; message: string }) => {
-    if (!deviceInfo?.familyMembers?.length || !addWellnessAlert) {
+    const currentDeviceInfo = deviceInfoRef.current;
+    const currentAddWellnessAlert = addWellnessAlertRef.current;
+    
+    if (!currentDeviceInfo?.familyMembers?.length || !currentAddWellnessAlert) {
       console.log('No family members to alert or no alert function available');
       return;
     }
@@ -103,11 +114,11 @@ export function useBatteryConnectivityGuardian({
 
     try {
       // Send the alert
-      await addWellnessAlert({
+      await currentAddWellnessAlert({
         type: alert.type,
         message: alert.message,
         acknowledged: false,
-        familyMemberIds: deviceInfo.familyMembers,
+        familyMemberIds: currentDeviceInfo.familyMembers,
       });
       
       console.log(`Guardian alert sent: ${alert.type}`);
@@ -120,7 +131,7 @@ export function useBatteryConnectivityGuardian({
     } catch (error) {
       console.error('Error sending guardian alert:', error);
     }
-  }, [deviceInfo?.familyMembers, addWellnessAlert]);
+  }, []);
 
   // Check battery levels and send alerts
   const checkBatteryAlerts = useCallback(async () => {
@@ -190,7 +201,7 @@ export function useBatteryConnectivityGuardian({
         const wasConnected = prevStatus.isConnected;
         
         // Send restoration alert if connection was lost and now restored
-        if (!wasConnected && isNowConnected && addWellnessAlert) {
+        if (!wasConnected && isNowConnected && addWellnessAlertRef.current) {
           // Use setTimeout to avoid calling sendGuardianAlert during render
           setTimeout(() => {
             sendGuardianAlert({
@@ -209,7 +220,7 @@ export function useBatteryConnectivityGuardian({
     });
 
     return unsubscribe;
-  }, [updateConnectivityStatus, addWellnessAlert]);
+  }, [updateConnectivityStatus, sendGuardianAlert]);
 
   // Periodic checks
   useEffect(() => {
@@ -228,7 +239,7 @@ export function useBatteryConnectivityGuardian({
   return {
     batteryStatus,
     connectivityStatus,
-    isGuardianActive: !!deviceInfo?.familyMembers?.length,
+    isGuardianActive: !!deviceInfoRef.current?.familyMembers?.length,
     sendGuardianAlert,
   };
 }

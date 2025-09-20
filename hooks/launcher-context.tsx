@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { DEFAULT_APP_TILES, SAMPLE_CONTACTS } from '@/constants/launcher-config';
 import { AppTile, Contact, LauncherSettings, WellnessCheckIn, WellnessAlert } from '@/types/launcher';
-import { useWellnessMonitoring } from '@/hooks/wellness-monitoring';
+
 
 const STORAGE_KEYS = {
   SETTINGS: 'launcher_settings',
@@ -251,16 +251,8 @@ export const [LauncherProvider, useLauncher] = createContextHook(() => {
     setLastActivity(new Date().toISOString());
   };
 
-  // Initialize wellness monitoring with proper dependencies
-  const { isGuardianActive } = useWellnessMonitoring({
-    settings,
-    recordActivity,
-    addWellnessCheckIn,
-    addWellnessAlert,
-    getTodaysCheckIn,
-    getHoursSinceLastActivity,
-    deviceInfo: null, // Will be provided by dashboard context when needed
-  });
+  // Guardian status will be managed by dashboard context
+  const isGuardianActive = false;
 
   return {
     settings,
