@@ -104,49 +104,50 @@ export function useBatteryConnectivityGuardian({
 
     // Prevent spam - don't send same alert type within 30 minutes
     const now = Date.now();
-    const lastAlertTime = lastAlerts[alert.type] || 0;
-    const thirtyMinutes = 30 * 60 * 1000;
     
-    if (now - lastAlertTime < thirtyMinutes) {
-      console.log(`Skipping ${alert.type} alert - too recent`);
-      return;
-    }
+    setLastAlerts(prev => {
+      const lastAlertTime = prev[alert.type] || 0;
+      const thirtyMinutes = 30 * 60 * 1000;
+      
+      if (now - lastAlertTime < thirtyMinutes) {
+        console.log(`Skipping ${alert.type} alert - too recent`);
+        return prev;
+      }
 
-    try {
-      // Send the alert
-      await currentAddWellnessAlert({
+      // Send the alert asynchronously
+      currentAddWellnessAlert({
         type: alert.type,
         message: alert.message,
         acknowledged: false,
         familyMemberIds: currentDeviceInfo.familyMembers,
+      }).then(() => {
+        console.log(`Guardian alert sent: ${alert.type}`);
+      }).catch(error => {
+        console.error('Error sending guardian alert:', error);
       });
       
-      console.log(`Guardian alert sent: ${alert.type}`);
-      
       // Update last alert time
-      setLastAlerts(prev => ({
+      return {
         ...prev,
         [alert.type]: now,
-      }));
-    } catch (error) {
-      console.error('Error sending guardian alert:', error);
-    }
+      };
+    });
   }, []);
 
   // Check battery levels and send alerts
-  const checkBatteryAlerts = useCallback(async () => {
+  const checkBatteryAlerts = useCallback(() => {
     const { level, isCharging } = batteryStatus;
     
     // Critical battery (5% or below)
     if (level <= 0.05 && !isCharging) {
-      await sendGuardianAlert({
+      sendGuardianAlert({
         type: 'battery_critical',
         message: `URGENT: Phone battery critically low (${Math.round(level * 100)}%). Device may shut down soon. Please charge immediately.`,
       });
     }
     // Low battery (20% or below)
     else if (level <= 0.20 && !isCharging) {
-      await sendGuardianAlert({
+      sendGuardianAlert({
         type: 'low_battery',
         message: `Phone battery low (${Math.round(level * 100)}%). Please remind to charge the device.`,
       });
@@ -154,11 +155,11 @@ export function useBatteryConnectivityGuardian({
   }, [batteryStatus.level, batteryStatus.isCharging, sendGuardianAlert]);
 
   // Check connectivity and send alerts
-  const checkConnectivityAlerts = useCallback(async () => {
+  const checkConnectivityAlerts = useCallback(() => {
     const { isConnected, isInternetReachable } = connectivityStatus;
     
     if (!isConnected || isInternetReachable === false) {
-      await sendGuardianAlert({
+      sendGuardianAlert({
         type: 'connectivity_lost',
         message: 'Phone has lost internet connection. Unable to receive calls or messages. Please check Wi-Fi or mobile data.',
       });
