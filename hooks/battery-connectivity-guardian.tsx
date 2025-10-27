@@ -92,6 +92,13 @@ export function useBatteryConnectivityGuardian({
     }
   }, []);
 
+  // Use ref for lastAlerts to avoid dependency issues
+  const lastAlertsRef = useRef(lastAlerts);
+  
+  useEffect(() => {
+    lastAlertsRef.current = lastAlerts;
+  }, [lastAlerts]);
+
   // Send alert to family portal
   const sendGuardianAlert = useCallback(async (alert: { type: GuardianAlertType; message: string }) => {
     const currentDeviceInfo = deviceInfoRef.current;
@@ -104,67 +111,66 @@ export function useBatteryConnectivityGuardian({
 
     // Prevent spam - don't send same alert type within 30 minutes
     const now = Date.now();
+    const lastAlertTime = lastAlertsRef.current[alert.type] || 0;
+    const thirtyMinutes = 30 * 60 * 1000;
     
-    setLastAlerts(prev => {
-      const lastAlertTime = prev[alert.type] || 0;
-      const thirtyMinutes = 30 * 60 * 1000;
-      
-      if (now - lastAlertTime < thirtyMinutes) {
-        console.log(`Skipping ${alert.type} alert - too recent`);
-        return prev;
-      }
+    if (now - lastAlertTime < thirtyMinutes) {
+      console.log(`Skipping ${alert.type} alert - too recent`);
+      return;
+    }
 
-      // Send the alert asynchronously
-      currentAddWellnessAlert({
+    try {
+      // Send the alert
+      await currentAddWellnessAlert({
         type: alert.type,
         message: alert.message,
         acknowledged: false,
         familyMemberIds: currentDeviceInfo.familyMembers,
-      }).then(() => {
-        console.log(`Guardian alert sent: ${alert.type}`);
-      }).catch(error => {
-        console.error('Error sending guardian alert:', error);
       });
       
+      console.log(`Guardian alert sent: ${alert.type}`);
+      
       // Update last alert time
-      return {
+      setLastAlerts(prev => ({
         ...prev,
         [alert.type]: now,
-      };
-    });
+      }));
+    } catch (error) {
+      console.error('Error sending guardian alert:', error);
+    }
   }, []);
 
   // Check battery levels and send alerts
-  const checkBatteryAlerts = useCallback(() => {
+  const checkBatteryAlerts = useCallback(async () => {
     const { level, isCharging } = batteryStatus;
     
     // Critical battery (5% or below)
     if (level <= 0.05 && !isCharging) {
-      sendGuardianAlert({
+      await sendGuardianAlert({
         type: 'battery_critical',
         message: `URGENT: Phone battery critically low (${Math.round(level * 100)}%). Device may shut down soon. Please charge immediately.`,
       });
     }
     // Low battery (20% or below)
     else if (level <= 0.20 && !isCharging) {
-      sendGuardianAlert({
+      await sendGuardianAlert({
         type: 'low_battery',
         message: `Phone battery low (${Math.round(level * 100)}%). Please remind to charge the device.`,
       });
     }
-  }, [batteryStatus.level, batteryStatus.isCharging, sendGuardianAlert]);
+  }, [batteryStatus, sendGuardianAlert]);
 
   // Check connectivity and send alerts
-  const checkConnectivityAlerts = useCallback(() => {
+  const checkConnectivityAlerts = useCallback(async () => {
     const { isConnected, isInternetReachable } = connectivityStatus;
     
     if (!isConnected || isInternetReachable === false) {
-      sendGuardianAlert({
+      await sendGuardianAlert({
         type: 'connectivity_lost',
         message: 'Phone has lost internet connection. Unable to receive calls or messages. Please check Wi-Fi or mobile data.',
       });
     }
-  }, [connectivityStatus.isConnected, connectivityStatus.isInternetReachable, sendGuardianAlert]);
+  }, [connectivityStatus, sendGuardianAlert]);
 
   // Set up battery monitoring
   useEffect(() => {
@@ -221,7 +227,7 @@ export function useBatteryConnectivityGuardian({
     });
 
     return unsubscribe;
-  }, [updateConnectivityStatus, sendGuardianAlert]);
+  }, [updateConnectivityStatus]);
 
   // Periodic checks
   useEffect(() => {
