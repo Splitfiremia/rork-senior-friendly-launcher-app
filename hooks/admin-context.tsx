@@ -1,6 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   AdminUser, 
@@ -135,6 +135,14 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
   const [session, setSession] = useState<AdminSession | null>(null);
   const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
   const queryClient = useQueryClient();
+  
+  // Use refs to store mutation functions to prevent dependency changes
+  const loginRef = React.useRef<any>(null);
+  const updateSystemConfigRef = React.useRef<any>(null);
+  const updateSupportTicketRef = React.useRef<any>(null);
+  const resolveSystemAlertRef = React.useRef<any>(null);
+  const suspendUserRef = React.useRef<any>(null);
+  const sendSystemNotificationRef = React.useRef<any>(null);
 
   // Initialize admin session
   useEffect(() => {
@@ -218,6 +226,8 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
       throw new Error('Invalid credentials');
     },
   });
+  
+  loginRef.current = login.mutate;
 
   // Logout
   const logout = useCallback(async () => {
@@ -314,6 +324,8 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
       queryClient.invalidateQueries({ queryKey: ['admin-system-config'] });
     },
   });
+  
+  updateSystemConfigRef.current = updateSystemConfig.mutate;
 
   // Update support ticket
   const updateSupportTicket = useMutation({
@@ -326,6 +338,8 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
       refetchTickets();
     },
   });
+  
+  updateSupportTicketRef.current = updateSupportTicket.mutate;
 
   // Resolve system alert
   const resolveSystemAlert = useMutation({
@@ -338,6 +352,8 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
       refetchAlerts();
     },
   });
+  
+  resolveSystemAlertRef.current = resolveSystemAlert.mutate;
 
   // Suspend user account
   const suspendUser = useMutation({
@@ -350,6 +366,8 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
       refetchUsers();
     },
   });
+  
+  suspendUserRef.current = suspendUser.mutate;
 
   // Send system notification
   const sendSystemNotification = useMutation({
@@ -369,6 +387,33 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
       return { userIds, title, message, type };
     },
   });
+  
+  sendSystemNotificationRef.current = sendSystemNotification.mutate;
+
+  // Stable wrapper functions for mutations
+  const loginWrapper = useCallback((creds: { email: string; password: string }) => {
+    return loginRef.current?.(creds);
+  }, []);
+  
+  const updateSystemConfigWrapper = useCallback((updates: Partial<SystemConfig>) => {
+    return updateSystemConfigRef.current?.(updates);
+  }, []);
+  
+  const updateSupportTicketWrapper = useCallback((data: { ticketId: string; updates: Partial<SupportTicket> }) => {
+    return updateSupportTicketRef.current?.(data);
+  }, []);
+  
+  const resolveSystemAlertWrapper = useCallback((alertId: string) => {
+    return resolveSystemAlertRef.current?.(alertId);
+  }, []);
+  
+  const suspendUserWrapper = useCallback((userId: string) => {
+    return suspendUserRef.current?.(userId);
+  }, []);
+  
+  const sendSystemNotificationWrapper = useCallback((data: { userIds: string[]; title: string; message: string; type: 'info' | 'warning' | 'maintenance' }) => {
+    return sendSystemNotificationRef.current?.(data);
+  }, []);
 
   return useMemo(() => ({
     session,
@@ -381,13 +426,13 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
     isAuthenticated: !!session,
     isAdmin: session?.user.role === 'super_admin' || session?.user.role === 'admin',
     isSuperAdmin: session?.user.role === 'super_admin',
-    login: login.mutate,
+    login: loginWrapper,
     logout,
-    updateSystemConfig: updateSystemConfig.mutate,
-    updateSupportTicket: updateSupportTicket.mutate,
-    resolveSystemAlert: resolveSystemAlert.mutate,
-    suspendUser: suspendUser.mutate,
-    sendSystemNotification: sendSystemNotification.mutate,
+    updateSystemConfig: updateSystemConfigWrapper,
+    updateSupportTicket: updateSupportTicketWrapper,
+    resolveSystemAlert: resolveSystemAlertWrapper,
+    suspendUser: suspendUserWrapper,
+    sendSystemNotification: sendSystemNotificationWrapper,
     refetchStats,
     refetchUsers,
     refetchTickets,
@@ -401,13 +446,13 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
     systemAlerts,
     analyticsData,
     systemConfig,
-    login.mutate,
+    loginWrapper,
     logout,
-    updateSystemConfig.mutate,
-    updateSupportTicket.mutate,
-    resolveSystemAlert.mutate,
-    suspendUser.mutate,
-    sendSystemNotification.mutate,
+    updateSystemConfigWrapper,
+    updateSupportTicketWrapper,
+    resolveSystemAlertWrapper,
+    suspendUserWrapper,
+    sendSystemNotificationWrapper,
     refetchStats,
     refetchUsers,
     refetchTickets,

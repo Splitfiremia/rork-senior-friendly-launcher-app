@@ -1,6 +1,6 @@
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Device, FamilyMember, DashboardSession, RemoteCommand, Reminder, ReminderAlert } from '@/types/dashboard';
 
@@ -31,6 +31,10 @@ export const [DashboardProvider, useDashboard] = createContextHook(() => {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [reminderAlerts, setReminderAlerts] = useState<ReminderAlert[]>([]);
   const queryClient = useQueryClient();
+  
+  // Use refs to store mutation functions to prevent dependency changes
+  const pairDeviceRef = React.useRef<any>(null);
+  const authenticateFamilyMemberRef = React.useRef<any>(null);
 
   // Initialize device ID
   useEffect(() => {
@@ -119,6 +123,9 @@ export const [DashboardProvider, useDashboard] = createContextHook(() => {
       queryClient.invalidateQueries({ queryKey: ['device-info'] });
     },
   });
+  
+  // Store the mutation function in ref
+  pairDeviceRef.current = pairDevice.mutate;
 
   // Authenticate family member
   const authenticateFamilyMember = useMutation({
@@ -145,6 +152,9 @@ export const [DashboardProvider, useDashboard] = createContextHook(() => {
       return mockSession;
     },
   });
+  
+  // Store the mutation function in ref
+  authenticateFamilyMemberRef.current = authenticateFamilyMember.mutate;
 
   // Poll for remote commands
   const { data: remoteCommands } = useQuery({
@@ -291,6 +301,15 @@ export const [DashboardProvider, useDashboard] = createContextHook(() => {
     setReminders([]);
     setReminderAlerts([]);
   }, []);
+  
+  // Stable wrapper functions for mutations
+  const pairDeviceWrapper = useCallback((token: string) => {
+    return pairDeviceRef.current?.(token);
+  }, []);
+  
+  const authenticateFamilyMemberWrapper = useCallback((creds: { email: string; password: string }) => {
+    return authenticateFamilyMemberRef.current?.(creds);
+  }, []);
 
   return useMemo(() => ({
     deviceId,
@@ -306,8 +325,8 @@ export const [DashboardProvider, useDashboard] = createContextHook(() => {
     isAuthenticated: !!session,
     isPaired: !!deviceInfo,
     generatePairingCode,
-    pairDevice: pairDevice.mutate,
-    authenticateFamilyMember: authenticateFamilyMember.mutate,
+    pairDevice: pairDeviceWrapper,
+    authenticateFamilyMember: authenticateFamilyMemberWrapper,
     processRemoteCommand,
     addRemoteCommand,
     addReminder,
@@ -328,8 +347,8 @@ export const [DashboardProvider, useDashboard] = createContextHook(() => {
     reminders,
     reminderAlerts,
     generatePairingCode,
-    pairDevice.mutate,
-    authenticateFamilyMember.mutate,
+    pairDeviceWrapper,
+    authenticateFamilyMemberWrapper,
     processRemoteCommand,
     addRemoteCommand,
     addReminder,
